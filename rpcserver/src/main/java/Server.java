@@ -106,8 +106,14 @@ class ClientHandler implements Runnable {
                     logger.info("Processed BASE64_ENCODE request. Response: " + responseStr);
                     break;
                 case "BASE64_DECODE":
-                    responseStr = new String(Base64.getDecoder().decode(requestData));
-                    logger.info("Processed BASE64_DECODE request. Response: " + responseStr);
+                    logger.info("Received BASE64_DECODE request with data: " + requestData);
+                    try {
+                        responseStr = new String(Base64.getDecoder().decode(requestData));
+                        logger.info("Processed BASE64_DECODE request. Response: " + responseStr);
+                    } catch (IllegalArgumentException e) {
+                        logger.warning("Illegal Base64 input: " + e.getMessage());
+                        responseStr = "Error: Illegal Base64 input";
+                    }
                     break;
                 case "JSON_FORMAT":
                     responseStr = "Not implemented"; // Implement this method

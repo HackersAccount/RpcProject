@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.*;
+import java.util.Base64;
 
 public class Client {
     public static void main(String[] args) {
@@ -10,6 +11,18 @@ public class Client {
 
         String requestType = args[0];
         String requestData = args[1];
+
+        switch (requestType) {
+            case "BASE64_ENCODE":
+                // Preprocess the input string to remove XML tags ("<" and ">")
+                requestData = requestData.replaceAll("<[^>]*>", "");
+                // Encode the preprocessed data as Base64
+                String encodedData = Base64.getEncoder().encodeToString(requestData.getBytes());
+                System.out.println("Encoded data: " + encodedData);
+                break;
+            default:
+                System.out.println("Invalid request type");
+        }
 
         try {
             // Connect to the server
