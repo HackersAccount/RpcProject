@@ -1,19 +1,18 @@
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.*;
 import java.net.*;
-//import java.util.logging.*;
 import java.util.Base64;
 import java.util.UUID;
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.json.JSONObject;
-import org.json.JSONArray;
 import java.util.logging.SimpleFormatter;
+import java.util.Map;
+
 
 /*
  import java.security.MessageDigest;
@@ -161,7 +160,7 @@ class ClientHandler implements Runnable {
                     if (requestData != null && !requestData.isEmpty()) {
                         try {
                             // Fetch weather forecast data from the API
-                            String forecast = fetchWeatherForecast(requestData);
+                            String forecast = WeatherService.fetchWeatherForecast(requestData);
                             responseStr = "Weather forecast for " + requestData + ":\n" + forecast;
                             logger.info("Processed WEATHER_FORECAST request. Response: " + responseStr);
                         } catch (IOException e) {
@@ -226,36 +225,4 @@ class ClientHandler implements Runnable {
         }
         return result.toString();
     }
-
-    private String fetchWeatherForecast(String city) throws IOException {
-        // Replace "YOUR_API_KEY" with your actual API key
-        String apiKey = "YOUR_API_KEY";
-        String apiUrl = "https://api.openweathermap.org/data/2.5/weather?q=" + city + "&appid=" + apiKey;
-
-        // Make HTTP request to fetch weather forecast data
-        URL url = new URL(apiUrl);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("GET");
-
-        // Read response
-        BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-        StringBuilder response = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-            response.append(line);
-        }
-        reader.close();
-
-        // Parse JSON response and extract forecast data
-        JSONObject json = new JSONObject(response.toString());
-        JSONObject main = json.getJSONObject("main");
-        double temperature = main.getDouble("temp");
-        double humidity = main.getDouble("humidity");
-        JSONArray weatherArray = json.getJSONArray("weather");
-        String description = weatherArray.getJSONObject(0).getString("description");
-
-        // Format forecast data
-        return "Temperature: " + temperature + "°C\nHumidity: " + humidity + "%\nDescription: " + description;
-    }
-
 }
