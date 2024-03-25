@@ -1,45 +1,64 @@
 import java.io.*;
 import java.net.*;
-import java.util.logging.*;
+//import java.util.logging.*;
 import java.util.Base64;
 import java.util.UUID;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.io.*;
-import java.net.*;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.logging.FileHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.json.JSONObject;
-import org.json.XML;
+import org.json.JSONArray;
+import java.util.logging.SimpleFormatter;
 
+/*
+ import java.security.MessageDigest;
+ import java.security.NoSuchAlgorithmException;
+ import org.json.XML;
+*/
 
 
 public class Server {
     private static final Logger logger = Logger.getLogger(Server.class.getName());
 
     public static void main(String[] args) {
+        setupLogger();
+
+        try (ServerSocket serverSocket = new ServerSocket(12345)) {
+            logger.info("Server started. Listening for incoming connections...");
+            ExecutorService executorService = Executors.newCachedThreadPool();
+
+            //noinspection InfiniteLoopStatement
+            while (true) {
+                try {
+                    // Accept client connection
+                    Socket clientSocket = serverSocket.accept();
+                    logger.info("Client connected: " + clientSocket.getInetAddress().getHostAddress());
+
+                    // Handle client request using a thread from the thread pool
+                    executorService.execute(new ClientHandler(clientSocket));
+                } catch (IOException e) {
+                    logger.log(Level.SEVERE, "Error accepting client connection", e);
+                }
+            }
+        } catch (IOException e) {
+            logger.log(Level.SEVERE, "Error occurred in server", e);
+        }
+    }
+
+    private static void setupLogger() {
         try {
-            // Set up logger
             FileHandler fileHandler = new FileHandler("server.log");
             SimpleFormatter formatter = new SimpleFormatter();
             fileHandler.setFormatter(formatter);
             logger.addHandler(fileHandler);
             logger.setLevel(Level.INFO);
-
-            // Create a server socket
-            ServerSocket serverSocket;
-            serverSocket = new ServerSocket(12345);
-            logger.info("Server started. Listening for incoming connections...");
-
-            while (true) {
-                // Accept client connection
-                Socket clientSocket = serverSocket.accept();
-                logger.info("Client connected: " + clientSocket.getInetAddress().getHostAddress());
-
-                // Start a new thread to handle the client request
-                Thread clientHandler = new Thread(new ClientHandler(clientSocket));
-                clientHandler.start();
-            }
         } catch (IOException e) {
-            logger.log(Level.SEVERE, "Error occurred in server", e);
+            logger.log(Level.SEVERE, "Error setting up logger", e);
         }
     }
 }
@@ -90,7 +109,7 @@ class ClientHandler implements Runnable {
                     logger.info("Processed REMOVE_SPACES request. Response: " + responseStr);
                     break;
                 case "STRIP_HTML":
-                    responseStr = requestData.replaceAll("\\<.*?\\>", "");
+                    responseStr = requestData.replaceAll("<.*?>", "");
                     logger.info("Processed STRIP_HTML request. Response: " + responseStr);
                     break;
                 case "CALCULATE":
@@ -124,20 +143,35 @@ class ClientHandler implements Runnable {
                     logger.info("Processed XML_FORMAT request. Response: " + responseStr);
                     break;
                 case "ROT13":
-                    responseStr = "Not implemented"; // Implement this method
+                    responseStr = rot13(requestData);
                     logger.info("Processed ROT13 request. Response: " + responseStr);
                     break;
+
                 case "UUID_GENERATE":
                     responseStr = UUID.randomUUID().toString();
                     logger.info("Processed UUID_GENERATE request. Response: " + responseStr);
                     break;
+
                 case "IP_LOOKUP":
                     responseStr = InetAddress.getByName(requestData).getHostAddress();
                     logger.info("Processed IP_LOOKUP request. Response: " + responseStr);
                     break;
+
                 case "WEATHER_FORECAST":
-                    responseStr = "Not implemented"; // Implement this method
-                    logger.info("Processed WEATHER_FORECAST request. Response: " + responseStr);
+                    if (requestData != null && !requestData.isEmpty()) {
+                        try {
+                            // Fetch weather forecast data from the API
+                            String forecast = fetchWeatherForecast(requestData);
+                            responseStr = "Weather forecast for " + requestData + ":\n" + forecast;
+                            logger.info("Processed WEATHER_FORECAST request. Response: " + responseStr);
+                        } catch (IOException e) {
+                            logger.log(Level.SEVERE, "Error fetching weather forecast", e);
+                            responseStr = "Error fetching weather forecast for " + requestData;
+                        }
+                    } else {
+                        responseStr = "City name is required for weather forecast";
+                        logger.warning("City name is required for weather forecast");
+                    }
                     break;
                 case "FILE_READ":
                     responseStr = "Not implemented"; // Implement this method
@@ -178,4 +212,50 @@ class ClientHandler implements Runnable {
             logger.log(Level.SEVERE, "Error occurred in client handler", e);
         }
     }
+
+    // ROT13 encryption method
+    private String rot13(String input) {
+        StringBuilder result = new StringBuilder();
+        for (char c : input.toCharArray()) {
+            if (Character.isLetter(c)) {
+                char base = Character.isUpperCase(c) ? 'A' : 'a';
+                result.append((char) ((c - base + 13) % 26 + base));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
+    }
+
+    private String fetchWeatherForecast(String city) throws IOException {
+        // Replace "YOUR_API_KEY" with your actual API key
+        String apiKey = "YOUR_API_KEY";
+        String apiUrl = "https://api.openweathermap.org/data/2.5/weather?q=" + city + "&appid=" + apiKey;
+
+        // Make HTTP request to fetch weather forecast data
+        URL url = new URL(apiUrl);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+
+        // Read response
+        BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        StringBuilder response = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            response.append(line);
+        }
+        reader.close();
+
+        // Parse JSON response and extract forecast data
+        JSONObject json = new JSONObject(response.toString());
+        JSONObject main = json.getJSONObject("main");
+        double temperature = main.getDouble("temp");
+        double humidity = main.getDouble("humidity");
+        JSONArray weatherArray = json.getJSONArray("weather");
+        String description = weatherArray.getJSONObject(0).getString("description");
+
+        // Format forecast data
+        return "Temperature: " + temperature + "°C\nHumidity: " + humidity + "%\nDescription: " + description;
+    }
+
 }
